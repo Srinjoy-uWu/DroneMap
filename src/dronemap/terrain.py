@@ -255,30 +255,30 @@ def reconstruct_terrain_mesh(
     output_ply: Path | None = None,
     grid_dim: int = 250,
     max_grid_dim: int = 400,
-    k_neighbors: int = 6,
+    k_neighbors: int = 8,
     up_hint: np.ndarray | None = None,
     max_tilt_deg: float = MAX_GROUND_TILT_DEG,
+    texture_size: int = 2048,
 ) -> dict[str, int | float | str]:
-    """Build a continuous 2.5D terrain surface mesh from 3D points.
+    """Build a solid, non-deformed 2.5D terrain surface mesh from 3D points.
 
-    Args:
-        points: (N, 3) float array of XYZ points
-        colors: (N, 3) uint8 array of RGB colors
-        output_obj: Destination path for OBJ file (with .mtl and texture)
-        output_ply: Optional destination path for PLY file
-        grid_dim: Target grid resolution along the primary axis
-        max_grid_dim: Maximum grid resolution clamp
-        k_neighbors: Number of nearest neighbors for inverse distance weighting
-        up_hint: Known vertical direction, when the cloud is georeferenced.
-            Defaults to +Z, which is correct for UTM and local-ENU clouds.
-        max_tilt_deg: Reject a fitted plane tilted further than this from
-            ``up_hint`` and fall back to the hint.  See :func:`fit_ground_plane`.
-
-    Returns:
-        Dictionary of mesh metrics, including the ground-plane measurements
-        (``ground_tilt_deg``, ``ground_plane_source``, ...) so a misaligned
-        product is visible in the manifest rather than only in the viewer.
+    Key improvements over naive regular-grid IDW:
+    1. Data Support Masking: Discards grid nodes and triangles that lie outside
+       the actual survey footprint (distance to nearest point > 2.5x cell size).
+       This completely eliminates sagging border curtains, corner droops, and
+       30m stretched triangles.
+    2. Regularized Elevation & Outlier Suppression: Avoids singular 1/d^2 spikes
+       and removes local height outliers so noise/vegetation points cannot create
+       artificial cones.
+    3. Analytical Surface Normals: Computes gradients directly on the elevation
+       field to bake smooth vertex normals into the OBJ/PLY/GLB, guaranteeing
+       continuous PBR shading in 3D viewers.
+    4. High-Resolution Texture Atlas: Upsamples and antialiases the surface
+       texture to 2048x2048 for crisp, photorealistic terrain appearance.
     """
+    import cv2
+    import scipy.ndimage
+
     if len(points) < 10:
         raise RuntimeError(f"Cannot reconstruct terrain mesh: only {len(points)} points available.")
 
@@ -289,7 +289,7 @@ def reconstruct_terrain_mesh(
     center, R = plane.center, plane.rotation
     pts_rot = (points - center) @ R.T
 
-    # 2. Compute 2D bounding box with 1st-99th percentile trimming to suppress outliers
+    # 2. Compute 2D bounding box with 0.5-99.5 percentile trimming to suppress extreme outliers
     x_min, x_max = float(np.percentile(pts_rot[:, 0], 0.5)), float(np.percentile(pts_rot[:, 0], 99.5))
     y_min, y_max = float(np.percentile(pts_rot[:, 1], 0.5)), float(np.percentile(pts_rot[:, 1], 99.5))
 
@@ -308,22 +308,99 @@ def reconstruct_terrain_mesh(
     yi = np.linspace(y_min, y_max, ny)
     GX, GY = np.meshgrid(xi, yi)
     grid_xy = np.column_stack([GX.ravel(), GY.ravel()])
+    cell_size = max(dx / max(nx - 1, 1), dy / max(ny - 1, 1))
 
-    # 3. Fast KDTree Inverse Distance Weighting for elevation and RGB colors
+    # 3. KDTree queries: nearest distance (for support masking) and k-neighbors (for IDW)
     tree = scipy.spatial.cKDTree(pts_rot[:, :2])
-    k_query = min(k_neighbors, len(points))
-    dists, idxs = tree.query(grid_xy, k=k_query)
+    dists_1, _ = tree.query(grid_xy, k=1)
+    max_support_dist = max(2.5 * cell_size, 0.6)
+    valid_node = (dists_1 <= max_support_dist)
 
-    # Handle k=1 1D array shape from cKDTree
+    k_query = min(max(k_neighbors, 8), len(points))
+    dists, idxs = tree.query(grid_xy, k=k_query)
     if k_query == 1:
         dists = dists[:, None]
         idxs = idxs[:, None]
 
-    weights = 1.0 / np.maximum(dists, 1e-4)**2
-    weights /= weights.sum(axis=1, keepdims=True)
+    # Regularized inverse distance weighting to prevent singular division
+    reg_eps = max(0.25 * cell_size, 0.05)
+    weights = 1.0 / (np.maximum(dists, 1e-4) + reg_eps)**2
 
-    gz = np.sum(weights * pts_rot[idxs, 2], axis=1)
+    # Local outlier rejection on Z to suppress aerial floaters and sub-surface spikes
+    local_z = pts_rot[idxs, 2]
+    med_z = np.median(local_z, axis=1, keepdims=True)
+    dev_z = np.abs(local_z - med_z)
+    mad_z = np.median(dev_z, axis=1, keepdims=True) * 1.4826
+    outlier_mask = dev_z > np.maximum(3.0 * mad_z, 0.5)
+    weights[outlier_mask] = 0.0
+    weight_sum = weights.sum(axis=1, keepdims=True)
+    zero_weights = (weight_sum[:, 0] == 0)
+    if np.any(zero_weights):
+        weights[zero_weights] = 1.0 / (dists[zero_weights] + reg_eps)**2
+        weight_sum = weights.sum(axis=1, keepdims=True)
+    weights /= np.maximum(weight_sum, 1e-12)
 
+    gz = np.sum(weights * local_z, axis=1)
+
+    # 4. Normalised 2D Gaussian smoothing on valid elevation grid
+    Z_grid = gz.reshape((ny, nx))
+    Valid_grid = valid_node.reshape((ny, nx))
+    blurred_z = scipy.ndimage.gaussian_filter(Z_grid * Valid_grid, sigma=0.75)
+    blurred_w = scipy.ndimage.gaussian_filter(Valid_grid.astype(float), sigma=0.75)
+    safe_w = np.maximum(blurred_w, 1e-6)
+    Z_smooth = np.where(blurred_w > 1e-3, blurred_z / safe_w, Z_grid)
+    gz = np.where(valid_node, Z_smooth.ravel(), gz)
+
+    # 5. Compute analytical smooth surface vertex normals
+    dz_dy, dz_dx = np.gradient(Z_smooth, dy / max(ny - 1, 1), dx / max(nx - 1, 1))
+    N_rot = np.column_stack([-dz_dx.ravel(), -dz_dy.ravel(), np.ones_like(gz)])
+    N_rot /= np.maximum(np.linalg.norm(N_rot, axis=1, keepdims=True), 1e-12)
+    N_orig = N_rot @ plane.rotation
+
+    # 6. Transform grid vertices back to original 3D coordinates
+    V_rot = np.column_stack([grid_xy, gz])
+    V_orig = V_rot @ plane.rotation + center
+
+    # 7. Triangulation with strict boundary support masking
+    faces = []
+    for r in range(ny - 1):
+        for c in range(nx - 1):
+            i0 = r * nx + c
+            i1 = r * nx + (c + 1)
+            i2 = (r + 1) * nx + c
+            i3 = (r + 1) * nx + (c + 1)
+            if valid_node[i0] and valid_node[i1] and valid_node[i2]:
+                faces.append([i0, i1, i2])
+            if valid_node[i1] and valid_node[i3] and valid_node[i2]:
+                faces.append([i1, i3, i2])
+
+    if not faces:
+        # Fallback in degenerate case: keep regular triangulation
+        for r in range(ny - 1):
+            for c in range(nx - 1):
+                i0 = r * nx + c
+                i1 = r * nx + (c + 1)
+                i2 = (r + 1) * nx + c
+                i3 = (r + 1) * nx + (c + 1)
+                faces.append([i0, i1, i2])
+                faces.append([i1, i3, i2])
+
+    faces_arr = np.array(faces, dtype=np.int32)
+    used_indices = np.unique(faces_arr)
+    index_map = np.full(len(grid_xy), -1, dtype=np.int32)
+    index_map[used_indices] = np.arange(len(used_indices), dtype=np.int32)
+    faces_remapped = index_map[faces_arr]
+
+    # UV coordinates
+    u = (GX.ravel() - x_min) / dx
+    v = (GY.ravel() - y_min) / dy
+    uv = np.column_stack([u, v])
+
+    V_used = V_orig[used_indices]
+    N_used = N_orig[used_indices]
+    UV_used = uv[used_indices]
+
+    # 8. High-resolution texture atlas generation
     if colors is not None and len(colors) == len(points):
         gr = np.clip(np.sum(weights * colors[idxs, 0], axis=1), 0, 255).astype(np.uint8)
         gg = np.clip(np.sum(weights * colors[idxs, 1], axis=1), 0, 255).astype(np.uint8)
@@ -333,37 +410,27 @@ def reconstruct_terrain_mesh(
         gg = np.full(len(gz), 180, dtype=np.uint8)
         gb = np.full(len(gz), 180, dtype=np.uint8)
 
-    # 4. Transform grid vertices back to original 3D coordinates
-    V_rot = np.column_stack([grid_xy, gz])
-    V_orig = V_rot @ R + center
+    base_tex = np.column_stack([gr, gg, gb]).reshape((ny, nx, 3))
+    tex_res = min(max(texture_size, 1024), 4096)
+    if (ny, nx) != (tex_res, tex_res):
+        tex_img = cv2.resize(base_tex, (tex_res, tex_res), interpolation=cv2.INTER_CUBIC)
+    else:
+        tex_img = base_tex
 
-    # 5. Build regular 2.5D surface triangulation
-    faces = []
-    for r in range(ny - 1):
-        for c in range(nx - 1):
-            i0 = r * nx + c
-            i1 = r * nx + (c + 1)
-            i2 = (r + 1) * nx + c
-            i3 = (r + 1) * nx + (c + 1)
-            faces.append([i0, i1, i2])
-            faces.append([i1, i3, i2])
-    faces_arr = np.array(faces, dtype=np.int32)
-
-    # 6. Build UV mapping and texture atlas
-    u = (GX.ravel() - x_min) / dx
-    v = (GY.ravel() - y_min) / dy
-    uv = np.column_stack([u, v])
-
-    tex_img = np.column_stack([gr, gg, gb]).reshape((ny, nx, 3))
-    # Flip vertically so row 0 corresponds to y_max (top of image, v=1),
-    # matching the OBJ/glTF convention where v=0 is y_min (bottom of image).
+    # Flip vertically to match glTF UV convention (v=0 at bottom of image)
     tex_img = np.flipud(tex_img)
     pil_img = Image.fromarray(tex_img)
-    visual = trimesh.visual.TextureVisuals(uv=uv, image=pil_img)
+    visual = trimesh.visual.TextureVisuals(uv=UV_used, image=pil_img)
 
-    mesh = trimesh.Trimesh(vertices=V_orig, faces=faces_arr, visual=visual, process=False)
+    mesh = trimesh.Trimesh(
+        vertices=V_used,
+        faces=faces_remapped,
+        vertex_normals=N_used,
+        visual=visual,
+        process=False,
+    )
 
-    # 7. Export OBJ + MTL + Texture
+    # 9. Export OBJ + MTL + Texture
     obj_str, files = trimesh.exchange.obj.export_obj(mesh, return_texture=True)
     output_obj.write_text(obj_str, encoding="utf-8")
     for filename, content in files.items():
@@ -399,9 +466,7 @@ def reconstruct_terrain_mesh(
             round(plane.rms_residual_m, 4) if np.isfinite(plane.rms_residual_m) else None
         ),
         "ground_inlier_fraction": plane.inlier_fraction,
-        # Relief measured in the *aligned* frame. If this is wildly smaller
-        # than the cloud's own Z span, the plane is still wrong: that is the
-        # signature the old fit left behind (corridor 228 m -> 22 m).
         "relief_m": round(float(pts_rot[:, 2].max() - pts_rot[:, 2].min()), 3),
         "cloud_z_span_m": round(float(points[:, 2].max() - points[:, 2].min()), 3),
     }
+

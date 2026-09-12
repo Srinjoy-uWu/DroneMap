@@ -270,6 +270,7 @@ def _run_terrain_mesh(ws: "RunWorkspace", cfg: "MeshConfig", dense_ply: Path, ct
         max_grid_dim=cfg.terrain_grid_max,
         up_hint=up_hint,
         max_tilt_deg=cfg.terrain_max_tilt_deg,
+        texture_size=cfg.texture_size,
     )
     if metrics["ground_plane_source"] == "fit_rejected":
         ctx.note(
@@ -322,6 +323,13 @@ def run(ws: "RunWorkspace", config: "Config", tools: "ToolRegistry", ctx: "_Stag
 
     # Explicit 2.5D terrain reconstruction
     if cfg.mode == "terrain_2.5d":
+        _run_terrain_mesh(ws, cfg, dense_ply, ctx)
+        return
+
+    # Automatic routing from capture quality verdict
+    pose_verdict = ws.stage("pose").metrics.get("capture_verdict")
+    if cfg.mode == "auto" and config.quality.route_terrain_to_2_5d and pose_verdict == "terrain_2_5d":
+        ctx.note("routing to 2.5D terrain mesh based on capture quality verdict (terrain_2_5d)")
         _run_terrain_mesh(ws, cfg, dense_ply, ctx)
         return
 

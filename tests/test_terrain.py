@@ -99,7 +99,7 @@ def test_rotation_aligning_is_never_a_reflection():
         assert R.T @ R == pytest.approx(np.eye(3), abs=1e-9)
 
 
-def test_georeferenced_prior_preserves_relief():
+def test_georeferenced_prior_preserves_relief(tmp_path: Path):
     """Rotating onto a bogus plane collapses the scene's true height.
 
     ``fixture_corridor_v1`` had 228 m of Z span turn into 22 m of "elevation"
@@ -121,18 +121,14 @@ def test_georeferenced_prior_preserves_relief():
     pts = np.vstack([ground, tower])
     colors = rng.integers(50, 200, (len(pts), 3), dtype=np.uint8)
 
-    out = Path(__file__).parent / "_tmp_relief.obj"
-    try:
-        metrics = reconstruct_terrain_mesh(
-            points=pts, colors=colors, output_obj=out,
-            grid_dim=40, max_grid_dim=60,
-            up_hint=np.array([0.0, 0.0, 1.0]),
-        )
-        assert metrics["ground_tilt_deg"] < 2.0
-        assert metrics["relief_m"] == pytest.approx(metrics["cloud_z_span_m"], rel=0.05)
-    finally:
-        for p in out.parent.glob("_tmp_relief*"):
-            p.unlink(missing_ok=True)
+    out = tmp_path / "relief.obj"
+    metrics = reconstruct_terrain_mesh(
+        points=pts, colors=colors, output_obj=out,
+        grid_dim=40, max_grid_dim=60,
+        up_hint=np.array([0.0, 0.0, 1.0]),
+    )
+    assert metrics["ground_tilt_deg"] < 2.0
+    assert metrics["relief_m"] == pytest.approx(metrics["cloud_z_span_m"], rel=0.05)
 
 
 def test_reconstruct_terrain_mesh(tmp_path: Path):
@@ -292,4 +288,58 @@ def test_terrain_mtl_full_diffuse_reflectance(tmp_path: Path):
     assert mtl_file.exists()
     mtl_text = mtl_file.read_text(encoding="utf-8")
     assert "Kd 1.00000000 1.00000000 1.00000000" in mtl_text
+
+
+def test_terrain_boundary_support_masking(tmp_path: Path):
+    """Empty space outside the survey footprint (e.g. L-shaped flight) must not be meshed with sagging skirts."""
+    rng = np.random.default_rng(99)
+    # L-shaped point cloud: arm 1 along X, arm 2 along Y, upper-right quadrant is completely empty
+    arm1 = np.column_stack([rng.uniform(0, 40, 500), rng.uniform(0, 10, 500), rng.normal(5, 0.05, 500)])
+    arm2 = np.column_stack([rng.uniform(0, 10, 500), rng.uniform(10, 40, 500), rng.normal(5, 0.05, 500)])
+    pts = np.vstack([arm1, arm2])
+    cols = np.full((len(pts), 3), 150, dtype=np.uint8)
+
+    out_obj = tmp_path / "masked_terrain.obj"
+    metrics = reconstruct_terrain_mesh(
+        points=pts,
+        colors=cols,
+        output_obj=out_obj,
+        grid_dim=40,
+        max_grid_dim=50,
+    )
+
+    # In a naive regular 40x40 grid, total faces would be 2 * 39 * 39 = 3042.
+    # The L-shape covers ~50% of the bounding box, so the empty quadrant faces must be pruned.
+    assert metrics["n_faces"] < 1800
+    assert metrics["n_vertices"] < 40 * 40
+
+    # Ensure OBJ contains vertex normals (vn lines)
+    obj_content = out_obj.read_text(encoding="utf-8")
+    assert "vn " in obj_content
+
+
+def test_terrain_texture_high_res(tmp_path: Path):
+    """High-res texture atlas must be generated and properly dimensioned."""
+    rng = np.random.default_rng(101)
+    x = rng.uniform(-10, 10, 100)
+    y = rng.uniform(-10, 10, 100)
+    z = rng.uniform(0, 1, 100)
+    pts = np.column_stack([x, y, z])
+    cols = np.full((100, 3), 180, dtype=np.uint8)
+
+    out_obj = tmp_path / "highres_terrain.obj"
+    reconstruct_terrain_mesh(
+        points=pts,
+        colors=cols,
+        output_obj=out_obj,
+        grid_dim=25,
+        max_grid_dim=30,
+        texture_size=1024,
+    )
+
+    png_files = list(tmp_path.glob("*.png"))
+    assert len(png_files) >= 1
+    from PIL import Image
+    with Image.open(png_files[0]) as img:
+        assert img.size == (1024, 1024)
 
