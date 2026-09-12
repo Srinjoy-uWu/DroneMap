@@ -1,7 +1,7 @@
 [project]
 name = "dronemap"
 version = "0.1.0"
-description = "SIH26158 - single-pass drone video to georeferenced, metrically accurate textured 3D model"
+description = "Single-pass drone video to georeferenced, metrically accurate textured 3D model"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 

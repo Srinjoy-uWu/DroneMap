@@ -47,3 +47,7 @@ desktop.ini
 .idea/
 .claude/
 .gemini/
+
+# --- Private materials ---
+_hackathon_materials/
+

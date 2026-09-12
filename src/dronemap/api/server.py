@@ -102,7 +102,7 @@ def _run_job_worker(
         # The web UI must not silently weaken the geometry requirements used
         # by the CLI; poor camera geometry should be rejected, not hidden.
         overrides_list: list[str] = []
-        # Optimized presets for fast hackathon demos and high quality without stalling
+        # Optimized presets for fast execution and high quality without stalling
         if quality == "fast":
             overrides_list.extend([
                 "frames.max_long_edge=1600",

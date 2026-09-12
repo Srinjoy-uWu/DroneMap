@@ -1,9 +1,8 @@
-# DroneMap — SIH26158
+# DroneMap
 
 **Single-Pass Drone Video → Accurate, Georeferenced 3D Model**  
-Smart India Hackathon 2026 · Problem Statement **SIH26158** · Problem Owner: **NTRO**
+An end-to-end aerial photogrammetry suite: turns a single continuous drone flight video (with or without telemetry) into a georeferenced, metrically scaled, photo-textured 3D model — complete with an interactive WebGL 3D measurement studio and automated accuracy reporting.
 
-Turns a single continuous drone video flight pass (plus flight telemetry/GPS) into a georeferenced, metrically scaled, photo-textured 3D model — terrain, buildings, roads, vegetation — complete with an interactive WebGL measurement studio and an accuracy report.
 
 ---
 
@@ -208,11 +207,5 @@ Each run stores its deliverables in `data/runs/<run_id>/07_export/`:
 - **`accuracy_report.json` & `report.html`**: Quality metrics, flight geometry assessment, and CRS metadata.
 - **`trajectory.kml` / `trajectory.json`**: Recovered 3D flight path.
 
----
 
-## 📚 Reference Documentation
-
-- [`SIH26158_Research_Dossier.md`](SIH26158_Research_Dossier.md) — Technical survey: photogrammetry vs NeRF/3DGS, error budgets, coordinate frames, and state-of-the-art benchmarks.
-- [`SIH26158_5Slide_Official_PPT.md`](SIH26158_5Slide_Official_PPT.md) — Hackathon jury slide deck.
-- [`SIH26158_PPT_Presentation_Guide.md`](SIH26158_PPT_Presentation_Guide.md) — Presentation script and speaker notes.
 

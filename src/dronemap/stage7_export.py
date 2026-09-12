@@ -1082,7 +1082,7 @@ def _write_html_report(ws: "RunWorkspace", out_path: Path, report: dict, gsd: fl
     <header>
       <div class="title-area">
         <h1>DroneMap Photogrammetry Run Report <span class="badge">EVIDENCE-LED</span></h1>
-        <div class="subtitle">NTRO Problem Statement SIH26158 &bull; Single-Pass Drone Video to 3D Map</div>
+        <div class="subtitle">Single-Pass Drone Video to 3D Photogrammetry Survey</div>
       </div>
       <div style="text-align: right; font-size: 0.85rem; color: var(--text-dim);">
         <div><strong>Run ID:</strong> {run_id}</div>
@@ -1189,7 +1189,7 @@ def _write_html_report(ws: "RunWorkspace", out_path: Path, report: dict, gsd: fl
     </div>
 
     <footer>
-      Generated autonomously by <strong>DroneMap Core Pipeline</strong> &bull; SIH26158 NTRO Defense Package &bull; Self-contained air-gapped survey report
+      Generated autonomously by <strong>DroneMap Core Pipeline</strong> &bull; Production Photogrammetry Suite &bull; Self-contained survey report
     </footer>
   </div>
 </body>

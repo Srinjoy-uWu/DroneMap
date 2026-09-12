@@ -1,7 +1,7 @@
 @echo off
-title DroneMap 3D Web Studio Launcher (SIH26158)
+title DroneMap 3D Web Studio
 echo ========================================================
-echo   DroneMap 3D Photogrammetry Studio - SIH26158 (NTRO)
+echo   DroneMap 3D Photogrammetry Studio
 echo ========================================================
 echo.
 echo [*] Checking local environment and dependencies...

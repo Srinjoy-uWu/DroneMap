@@ -44,7 +44,7 @@ from .workspace import GnssMode, RunWorkspace, StageStatus, free_disk_gb
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="Single-pass drone video -> georeferenced, metrically accurate 3D model (SIH26158).",
+    help="Single-pass drone video -> georeferenced, metrically accurate 3D model.",
 )
 # Force UTF-8 output so Unicode arrows/emoji don't crash on Windows cp1252 terminals.
 import io as _io
