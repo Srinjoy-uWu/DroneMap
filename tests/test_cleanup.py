@@ -1,4 +1,4 @@
-﻿"""Unit tests for dronemap.cleanup module."""
+"""Unit tests for dronemap.cleanup module."""
 
 from pathlib import Path
 from dronemap.cleanup import (

@@ -1,4 +1,4 @@
-﻿"""Automated disk cleanup and maintenance utility for DroneMap (SIH26158).
+"""Automated disk cleanup and maintenance utility for DroneMap (SIH26158).
 
 Provides safe pruning routines for:
 1. Root OpenMVS/COLMAP log clutter.

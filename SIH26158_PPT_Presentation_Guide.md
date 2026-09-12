@@ -56,7 +56,7 @@ This document is your definitive, slide-by-slide blueprint for creating your Sma
   - `Sub-8 Minute Turnaround`
   - `Survey of India / ASPRS Compliant`
 
-### 🗣️ Speaker Notes (Pitch Script)
+### 🗣 Speaker Notes (Pitch Script)
 > *"Respected Jury Members, our project addresses Problem Statement SIH26158 presented by the National Technical Research Organisation (NTRO): reconstructing an accurate, georeferenced, textured 3D model from a single-pass drone video. In critical defense reconnaissance, border surveillance, and disaster response, operators do not have the luxury of multi-strip flight grids or cloud supercomputers. We present **DroneMap**—an evidence-led, zero-paywall photogrammetry and neural reconstruction suite built to deliver survey-grade 3D deliverables entirely on an edge laptop GPU in under eight minutes."*
 
 ---
@@ -75,7 +75,7 @@ This document is your definitive, slide-by-slide blueprint for creating your Sma
     - Consumer GPS jitter, rolling-shutter distortion, and severe motion blur degrade standard pipelines.
     - Current solutions take hours or fail completely on single-pass trajectories.
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"In defense operations, drone missions are constrained by battery life, enemy radar cross-sections, and anti-drone electronic warfare. A tactical UAV flies one single forward pass over the area of interest. Intelligence officers cannot wait 6 hours for a cloud server, nor can they transmit sensitive aerial feeds across the open internet. They need accurate, metric 3D terrain and structural models right on their field laptops, with zero internet connectivity and zero cloud subscriptions."*
 
 ---
@@ -97,7 +97,7 @@ This document is your definitive, slide-by-slide blueprint for creating your Sma
 - **Callout Card**:
   > **The Epipole Trap**: In a forward-flying drone, optical flow radiates from the epipole (centre of screen), resulting in near-zero disparity at the flight heading. Traditional bundle adjustment collapses or stretches vertical geometry unless guided by calibrated focal priors and baseline-aware keyframe selection.
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Why can't NTRO simply use commercial tools like Pix4D or Agisoft Metashape? Because commercial photogrammetry was architected for agricultural and architectural survey grids where the drone flies back and forth with 80% cross-track overlap. When you feed them a single-pass linear video, they suffer from the classic nadir focal degeneracy: the software cannot distinguish camera zoom from forward altitude changes. Furthermore, moving vehicles create smeared geometric artifacts, and computation takes hours. DroneMap was engineered specifically to solve single-pass linear constraints."*
 
 ---
@@ -114,7 +114,7 @@ This document is your definitive, slide-by-slide blueprint for creating your Sma
   3. **Interactive 3D Web Studio**:
      - Built-in FastAPI & Three.js WebGL studio featuring live 3D metric measurements (Euclidean distance, horizontal span, vertical relief $\Delta Z$, and true compass bearing).
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Our solution is DroneMap: a dual-engine photogrammetry and geospatial AI system. We designed it around three uncompromisable principles: first, absolute local reliability—the guaranteed core works 100% offline on consumer laptop GPUs. Second, mathematical integrity—we implemented scale-free geometric quality gates so the system never fabricates fake 3D structures from flat tarmac or hovers. Third, an operational web studio that lets defense personnel immediately measure physical clearances and heights with millimeter precision."*
 
 ---
@@ -136,7 +136,7 @@ This document is your definitive, slide-by-slide blueprint for creating your Sma
 
 - **Key Takeaway**: The Guaranteed Core is a complete, deployable submission on its own. A failure in an experimental AI stretch component never jeopardizes mission delivery!
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"A hallmark of robust defense engineering is eliminating single points of failure. We tiered our pipeline into a Guaranteed Core and an AI Stretch Tier. The Core relies on heavily optimized C++ CUDA engines—COLMAP and OpenMVS—orchestrated through Python. Even if every neural stretch component is disabled, the Core produces complete Survey of India compliant GIS products. The Stretch tier layers on state-of-the-art vision foundations like YOLOv8 masking, Depth Anything, and 3D Gaussian Splatting without creating brittle dependencies."*
 
 ---
@@ -166,7 +166,7 @@ graph TD
 - **Runtime Budget (on RTX 3050 Laptop)**:
   - Total end-to-end execution: **~7 to 8 minutes** for a 60–90 second drone flight pass!
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Here is the complete dataflow. Raw 4K or 1080p drone video enters Stage 1, where a constant-memory streaming decoder filters out motion-blurred frames. In Stage 2, moving vehicles and pedestrians are segmented out so SIFT never places tie points on dynamic clutter. Stage 3 performs sequential structure-from-motion, and Stage 3b pins the reconstruction into physical coordinates using GPS telemetry. Stages 5 and 6 densify the cloud and reconstruct textured Poisson meshes. Finally, Stage 7 exports industry-standard GIS deliverables and launches our interactive Web Studio."*
 
 ---
@@ -188,7 +188,7 @@ graph TD
 | **Web Server & UI** | FastAPI + Uvicorn + Three.js | r166 WebGL OrbitControls, Raycaster HUD | MIT / Free |
 | **Cloud AI Training** | Free Kaggle Notebooks | NVIDIA T4 / P100 (16GB VRAM), ~120 hrs/wk | Free (Zero Paywall) |
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Every single tool in our stack was audited for zero paywalls and edge deployability. We utilize modern Python 3.11 managed by `uv`, precompiled native Windows CUDA binaries for COLMAP 4.1.1 and OpenMVS 2.4.0, and PyTorch CUDA 12.8. No Colab Pro subscriptions or proprietary licenses are required. When heavy 3D Gaussian Splatting is requested, we leverage free Kaggle GPU quotas across team accounts to provide 90 to 120 GPU hours per week at zero cost."*
 
 ---
@@ -209,7 +209,7 @@ graph TD
   - **Native COLMAP PNG Mask Integration**: Exports same-stem PNG masks (`ws.masks_dir/frame_NNNNNN.png`) passed to `--ImageReader.mask_path`.
   - **Result**: Zero SIFT feature extraction on moving objects $\rightarrow$ **Zero ghosting artifacts** in the final 3D model!
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Let's look at the first two stages. Drone video files can easily exceed 4 GB. A naive pipeline crashes laptop memory by buffering frames. DroneMap implements a streaming 2-pass architecture: Pass 1 calculates sharpness scores using Laplacian variance and samples optical flow on the fly without storing raw frames. We select frames that guarantee 75 to 80 percent overlap. In Stage 2, YOLOv8 segmentation identifies dynamic objects like vehicles and pedestrians. We dilate the mask boundaries to swallow motion blur and pass them into COLMAP. SIFT feature extraction is completely blinded to moving objects, ensuring dynamic clutter never pollutes the stationary reconstruction."*
 
 ---
@@ -230,7 +230,7 @@ graph TD
   - Performs **Sim(3) Umeyama Alignment**: Estimates optimal 7-DoF similarity transform (scale $s$, rotation $\mathbf{R}$, translation $\mathbf{t}$) between camera centers and GPS fixes.
   - **Result**: Exactly $1.000$ unit in the 3D model corresponds to $1.000$ meter in the real world!
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Stage 3 and 3b establish geometric truth. Standard feature matching compares every frame against every other frame, taking hours. Because drone video is sequential, our matcher tests only immediate temporal neighbors with quadratic skips, dropping matching time from 40 minutes to under 90 seconds. To georeference without surveyed ground control points, Stage 3b converts DJI GPS telemetry to Earth-Centered Earth-Fixed coordinates and computes a closed-form Umeyama similarity transform. This locks the model into real-world UTM coordinates with 1.0 unit equal to exactly 1.0 meter."*
 
 ---
@@ -249,7 +249,7 @@ graph TD
     - **Path B: 2.5D PCA TIN Terrain Engine (`terrain.py`)**: For flat terrain (beaches, runways, farmland), applies Principal Component Analysis to extract the ground normal, rotates points into a canonical horizontal plane, and constructs a Delaunay triangulated irregular network (TIN) with inverse distance weighting.
   - **Mesh Debris Cleanup**: Uses `trimesh` to segment disconnected components, pruning floating airborne artifacts and leaving a clean, watertight model.
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Once camera poses are locked, Stage 5 invokes OpenMVS to generate dense depth maps and fuse them into a high-density point cloud. In Stage 6, we address another major limitation of classical photogrammetry: nadir terrain flights often produce airborne floaters if forced through volumetric Poisson carving. DroneMap dynamically switches between full 3D Poisson meshing for complex structures and our proprietary 2.5D PCA TIN terrain engine for open landscape surveys. Our trimesh filter prunes floating geometric noise before projecting 8K photo textures directly onto the surface."*
 
 ---
@@ -269,7 +269,7 @@ graph TD
 | **Flight Trajectory** | `trajectory.kml` | OGC KML 2.2 / GeoJSON Waypoints | Mission playback in Google Earth / FalconView |
 | **Executive Survey Report**| `report.html` | Self-contained HTML (Zero external CDNs) | Air-gapped compliance verification, KPI sign-off |
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"In defense workflows, an AI system is useless if it outputs proprietary, unreadable files. Stage 7 compiles every standard geospatial asset required by the Survey of India and NTRO. We produce ASPRS LAS 1.4 compressed clouds, Digital Surface Models, bare-earth Digital Terrain Models, true-color Orthomosaics, and flight KMLs. Crucially, Stage 7 automatically compiles `report.html`—a standalone, air-gapped executive survey report containing GSD calculations, camera counts, and the NTRO Criteria Compliance Matrix."*
 
 ---
@@ -289,7 +289,7 @@ graph TD
   2. `TERRAIN_2_5D`: High parallax + planar site (beach, airfield) $\rightarrow$ 2.5D DSM surface mesh exported.
   3. `REJECT`: Low parallax / hover / epipole collapse $\rightarrow$ Pipeline halts *before* wasting 20 minutes of GPU meshing.
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Here is our major engineering differentiator: Evidence-Led Integrity. During rigorous testing, we discovered that simple counts—such as number of registered cameras—are deceptive. A drone hovering over a parking lot registers 100 percent of its frames, but the resulting model is a flat, warped sheet. Instead of counting points, DroneMap measures scale-free geometry: triangulation angles, baseline-to-depth ratios, and PCA planarity eigenvalues. If the imagery lacks parallax, the system halts with an honest `REJECT` verdict before wasting GPU compute. If the terrain is genuinely flat, like a beach, it exports an honest 2.5D terrain surface rather than pretending flat ground is a building."*
 
 ---
@@ -308,7 +308,7 @@ graph TD
 - **4. Ground Sampling Distance (GSD) Estimation**:
   $$\text{GSD} \approx \sqrt{\frac{(X_{\max} - X_{\min}) \times (Y_{\max} - Y_{\min})}{N_{\text{dense\_points}}}}$$
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"For the mathematically inclined members of the jury, here are the exact formulations governing our pipeline. Frame sharpness is quantified via the variance of the discrete 2D Laplacian operator. Absolute metric scale is recovered through closed-form Umeyama Sim(3) alignment, solving singular value decomposition on the spatial cross-covariance matrix between recovered camera centers and GPS fixes. Telemetry coordinates are mapped from WGS-84 geodetic ellipsoids into ECEF and local UTM Cartesian frames. Ground Sampling Distance is computed dynamically across the dense point cloud."*
 
 ---
@@ -321,7 +321,7 @@ graph TD
   - **Visualization Modes**:
     - 🎨 **Textured PBR Mode**: Displays photo-realistic 8K projected texture atlas.
     - ⚪ **White Clay Mode**: Visualizes raw Poisson geometric faces to verify structural integrity.
-    - 🕸️ **Wireframe Overlay**: Displays underlying polygon topology (61,000+ faces).
+    - 🕸 **Wireframe Overlay**: Displays underlying polygon topology (61,000+ faces).
   - **Live 3D Metric Measurement HUD (Shortcut: `M`)**:
     - Real-time raycasting calculates:
       - **3D Euclidean Distance ($D_{3D}$)**: Point-to-point spatial clearance.
@@ -329,7 +329,7 @@ graph TD
       - **Vertical Relief ($\Delta Z$)**: Height of structures, roofs, or terrain cut/fill.
       - **True Compass Bearing ($\theta$)**: Real-world orientation relative to True North.
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"This is our live DroneMap Web Studio. Operators can launch it with a single click via `launch_studio.bat`. The interface provides instant 60 FPS WebGL rendering of the reconstructed scene. Notice the view toggles: we can switch from photo-realistic PBR texturing to White Clay mode to inspect the structural surface mesh. Most importantly, pressing 'M' activates our 3D Raycaster Measurement Tool. By clicking any two points on a building or road, the HUD displays exact 3D Euclidean distance, horizontal span, vertical height relief, and true geographic compass bearing."*
 
 ---
@@ -351,7 +351,7 @@ graph TD
 
 - **Measurement Accuracy**: Euclidean distance error $< 1.8\%$ against ground-truth warehouse dimensions without Ground Control Points!
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"To objectively prove our accuracy rather than merely asserting it, we engineered an automated validation harness using Blender 5.1. We generated a synthetic drone flight over millimeter-exact warehouse structures with simulated GPS noise. As shown in our benchmark table, DroneMap processed the 30-frame flight in under 8 minutes, recovering 199,000 dense points and 61,000 polygon faces with a Ground Sampling Distance of 5.76 centimeters per pixel. Measured structural dimensions matched ground truth within 1.8 percent error."*
 
 ---
@@ -374,7 +374,7 @@ graph TD
 | **C9** | Ground-Truth Benchmarking | Blender 5.1 procedural survey validation harness | ✅ **PASSED** (Automated ATE and Chamfer scoring) |
 | **C10**| AI Stretch Tier | 3D Gaussian Splatting (Nerfstudio splatfacto) on Kaggle | ✅ **PASSED** (1-click cloud notebook provided) |
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"Here is our direct compliance scorecard against the ten evaluation criteria specified by NTRO. From C1 through C10, our system fulfills every requirement: metric accuracy verified against synthetic ground truth, georeferenced output in standard UTM coordinates, dynamic vehicle removal using YOLOv8, zero-dependency offline edge execution, complete GIS format exports, and an interactive 3D Web Studio with live measurement tools."*
 
 ---
@@ -389,7 +389,7 @@ graph TD
   - **Minute 4: GIS Deliverables & HTML Report**: Click **View Full Quality Report (HTML)** (`report.html`). Walk through GSD ($5.7\,\text{cm/px}$), KPI cards, and NTRO Criteria Compliance Matrix.
   - **Minute 5: Ground Truth & AI Stretch**: Highlight Blender evaluation scorecard and the 1-click Kaggle Gaussian Splatting notebook.
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"During our live demonstration, we follow this exact 5-minute protocol. We begin in the DroneMap Web Studio, inspect the textured model and switch to White Clay mode to demonstrate watertight polygon geometry. We then trigger the live measurement tool to prove metric scale in real time. Next, we showcase the generated GIS deliverables—including LAZ clouds, DSMs, and the air-gapped HTML report. Finally, we highlight our automated ground-truth evaluation and AI Stretch Gaussian Splatting notebook."*
 
 ---
@@ -406,7 +406,7 @@ graph TD
 - **Q4: "Why not use an end-to-end deep learning model like DUSt3R or VGGT exclusively?"**
   - **Counter**: *"Feed-forward models like DUSt3R and VGGT are revolutionary for few-view relative geometry, but they are quadratic in memory, output unscaled coordinate clouds, and suffer catastrophic out-of-memory errors on long 1,000-frame video passes on 6GB VRAM. We leverage classical SfM for guaranteed metric stability while integrating AI where it excels: dynamic masking and dense priors."*
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"These four questions represent the most critical technical scrutiny we anticipate from NTRO experts. We have engineered concrete answers and architectural safeguards for each: sequential matching solves loop absence; up-to-scale fallback handles GPS jamming; vendored local binaries guarantee air-gapped security; and our hybrid design avoids the memory exhaustion inherent in purely neural feed-forward models."*
 
 ---
@@ -426,5 +426,5 @@ graph TD
 - **Closing Statement**:
   > **DroneMap provides NTRO with a guaranteed, air-gapped, Survey-of-India compliant photogrammetry engine ready for immediate tactical deployment.**
 
-### 🗣️ Speaker Notes
+### 🗣 Speaker Notes
 > *"In summary, our team has divided responsibilities across video processing, 3D geometry, geospatial standards, and interactive visualization. DroneMap solves the single-pass challenge through rigorous engineering: it is 100 percent offline, evidence-led, zero-paywall, and fully compliant with NTRO criteria. Thank you, and we now welcome questions from the jury."*

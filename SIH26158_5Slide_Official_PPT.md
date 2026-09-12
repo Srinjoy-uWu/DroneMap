@@ -24,7 +24,7 @@
     - **Survey-Grade GIS Deliverables**: ASPRS LAS 1.4 point clouds, DSM/DTM GeoTIFFs, Orthomosaics, and an interactive 3D Web Studio with live metric measurement HUD.
 - **Key Metric Badges**: `100% Offline` | `Sub-8 Min Latency` | `RTX 3050 6GB` | `Survey of India Compliant`
 
-### 🗣️ Speaker Script (Minute 1: The Pitch)
+### 🗣 Speaker Script (Minute 1: The Pitch)
 > *"Respected Jury Members, our project addresses Problem Statement SIH26158 from the National Technical Research Organisation (NTRO): generating an accurate, georeferenced 3D model from a single-pass drone video.*
 > 
 > *In defense reconnaissance and border surveillance, drones cannot fly cross-hatch survey grids—they fly a single forward pass over hostile territory. Traditional photogrammetry software like Pix4D or Metashape completely breaks down on single-pass footage because they assume 80% cross-track overlap and require cloud supercomputers. Furthermore, moving convoys leave smeared ghost trails, and forward optical flow causes vertical geometry to collapse.*
@@ -45,7 +45,7 @@
 - **Side Panel: AI Stretch Tier (Kaggle Cloud)**:
   - Depth Anything V2 / Metric3D v2 monocular priors + 3D Gaussian Splatting (Nerfstudio) trained on free Kaggle T4 GPUs in 25 minutes.
 
-### 🗣️ Speaker Script (Minute 2: How It Works)
+### 🗣 Speaker Script (Minute 2: How It Works)
 > *"Our technical approach is architected around a 7-stage deterministic pipeline. In Stage 1, a streaming two-pass decoder filters out motion-blurred frames using Laplacian variance and samples optical flow to select keyframes with an optimal 80% forward overlap, maintaining an O(1) memory footprint.*
 > 
 > *In Stage 2, YOLOv8 segmentation masks out dynamic vehicles and pedestrians with morphological dilation. By passing these masks directly to COLMAP's feature extractor, SIFT keypoints are never placed on moving objects, completely eliminating ghost geometry.*
@@ -72,7 +72,7 @@
 | **False Accepts on Flat Tarmac/Hover**| Drone hovering registers 100% frames but yields flat 2D sheet | **Scale-free geometric quality gating (`quality.py`)**: Triangulation angle ($>8^\circ$), PCA planarity ($\lambda_3/\lambda_1$), baseline/depth ratio |
 | **GPS Denial / Electronic Jamming** | Drone operating in GPS-spoofed tactical airspace | Automatic up-to-scale fallback (`--no-telemetry`) using camera baseline scaling and Depth Anything priors |
 
-### 🗣️ Speaker Script (Minute 3: Feasibility & Mitigations)
+### 🗣 Speaker Script (Minute 3: Feasibility & Mitigations)
 > *"Feasibility was our primary engineering constraint. DroneMap runs 100% locally on a consumer 6 GB laptop GPU without internet access, satisfying military air-gapped security protocols. We have zero software paywalls and zero commercial licensing restrictions.*
 > 
 > *We systematically mitigated the four classic failure modes of single-pass aerial capture: First, to counter the epipole trap where forward flight creates zero disparity along the flight line, we combine quadratic sequential matching with calibrated focal priors.*
@@ -102,7 +102,7 @@
      - Benchmarked on synthetic Blender 5.1 procedural survey worlds: **$< 1.8\%$ dimensional error** against ground truth without Ground Control Points.
      - Automatically generates an air-gapped executive survey report (`report.html`) verifying all NTRO criteria (C1–C10).
 
-### 🗣️ Speaker Script (Minute 4: Impact & Demonstration)
+### 🗣 Speaker Script (Minute 4: Impact & Demonstration)
 > *"The operational impact of DroneMap for defense and disaster response is transformative. First, speed: intelligence officers gain survey-grade 3D models in under 8 minutes instead of waiting hours for cloud processing.*
 > 
 > *Second, military interoperability: our system produces Survey of India and ASPRS compliant LAS 1.4 point clouds, DSMs, bare-earth DTMs, and orthomosaics that feed directly into tactical GIS mapping and artillery systems.*
@@ -136,7 +136,7 @@
     - **DroneMap Project Repository**: Complete local source code, test suites, and launch scripts (`src/dronemap/`)
     - **Kaggle 3DGS Cloud Notebook**: 1-click cloud Gaussian Splatting training pipeline (`notebooks/3dgs_splatfacto_kaggle.ipynb`)
 
-### 🗣️ Speaker Script (Minute 5: Research Pedigree & Closing)
+### 🗣 Speaker Script (Minute 5: Research Pedigree & Closing)
 > *"Our system is built on established photogrammetry foundations and peer-reviewed computer vision literature. We build upon the classical SfM algorithms of COLMAP and OpenMVS, paired with Umeyama's landmark 1991 closed-form Sim(3) formulation for geodetic alignment.*
 > 
 > *On the deep learning frontier, we surveyed feed-forward pointmap architectures including DUSt3R, MASt3R, and Meta's CVPR 2025 Best Paper VGGT, alongside Depth Anything V2 for metric scale disambiguation. We benchmarked our semantic and geometric accuracy using aerial datasets like UAVid and UseGeo, alongside our procedural Blender survey fixture.*

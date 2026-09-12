@@ -122,7 +122,7 @@ dronemap clean <run_id>                    # Delete a single specific run
 
 ---
 
-## ☁️ Running on Kaggle (Free Cloud GPU T4 × 2)
+## ☁ Running on Kaggle (Free Cloud GPU T4 × 2)
 
 Kaggle provides **30 hours/week of free dual-GPU (NVIDIA T4 × 2)**. You can run DroneMap on Kaggle in two ways:
 

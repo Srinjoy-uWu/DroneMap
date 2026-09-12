@@ -45,7 +45,7 @@
 
 ---
 
-## ⏱️ Minute-by-Minute Live Demo Flow
+## ⏱ Minute-by-Minute Live Demo Flow
 
 ### Minute 1: The Problem & Edge Constraint
 - **Speaker Action**: Have the DroneMap Web Studio open on the laptop (`http://127.0.0.1:8000`).
@@ -153,7 +153,7 @@ Honesty notes for this minute:
 
 ---
 
-## 🛡️ Anticipated Jury Questions & Technical Counters
+## 🛡 Anticipated Jury Questions & Technical Counters
 
 #### Q1: "How do you handle feature matching on a single pass without loops?"
 > **Answer**: *"Sequential matching with quadratic overlap windowing — `--SequentialMatching.overlap 10` with `quadratic_overlap` enabled, so each frame matches its temporal neighbours and then progressively wider power-of-two offsets, which recovers some long-range constraints without a full exhaustive pass. Loop detection is configured but ran disabled on these fixtures because no vocabulary tree was present; the logs show `--SequentialMatching.loop_detection 0`."*
