@@ -213,12 +213,8 @@ if (!canvas) {
       (gltf) => {
         currentModel = gltf.scene;
 
-        const initialBox = new THREE.Box3().setFromObject(currentModel);
-        const initSize = initialBox.getSize(new THREE.Vector3());
-        if (initSize.z < initSize.y * 0.5) {
-          currentModel.rotation.x = Math.PI / 2;
-          currentModel.updateMatrixWorld(true);
-        }
+        // Center model over origin and position baseline on ground grid (Y=0)
+        currentModel.updateMatrixWorld(true);
 
         const box = new THREE.Box3().setFromObject(currentModel);
         const centre = box.getCenter(new THREE.Vector3());

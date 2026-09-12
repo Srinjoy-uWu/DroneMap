@@ -237,8 +237,11 @@ def _write_laz(
     las.write(str(out_path))
 
 
-def _viewer_frame_transform(transform: dict) -> tuple[np.ndarray, dict] | tuple[None, dict]:
-    """Rotation carrying a shifted-ECEF model into the viewer's Y-up ENU frame.
+def _viewer_frame_transform(
+    transform: dict,
+    ws: "RunWorkspace | None" = None,
+) -> tuple[np.ndarray, dict] | tuple[None, dict]:
+    """Rotation carrying an ECEF or local-relative model into the viewer's Y-up frame.
 
     Why the GLB needs its own frame
     -------------------------------
@@ -261,8 +264,38 @@ def _viewer_frame_transform(transform: dict) -> tuple[np.ndarray, dict] | tuple[
     the mesh stays metric and measurable. Combined with ``model_offset_m`` it is
     exactly invertible, and the returned dict records both halves so a
     georeferenced consumer can put the mesh back into ECEF.
+
+    For unaligned / local-relative captures (no telemetry), COLMAP's coordinate
+    axes are arbitrary. When a ground normal is known from stage 6 meshing,
+    the model is rotated so ground normal aligns with glTF +Y (up), ensuring
+    the ground sits level with the viewer's reference grid.
     """
     if transform.get("coordinate_frame") != "ECEF" or not transform.get("georef_success"):
+        # Check if stage 6 recorded a ground plane normal for local alignment
+        if ws is not None:
+            mesh_stage = ws.stage("mesh")
+            ground_normal = mesh_stage.outputs.get("ground_normal") or mesh_stage.metrics.get("ground_normal")
+            if ground_normal is not None:
+                if isinstance(ground_normal, str):
+                    try:
+                        ground_normal = json.loads(ground_normal)
+                    except Exception:
+                        pass
+                gn = np.asarray(ground_normal, dtype=np.float64)
+                n_len = float(np.linalg.norm(gn))
+                if n_len > 1e-6:
+                    gn = gn / n_len
+                    from .terrain import _rotation_aligning
+                    rot = _rotation_aligning(gn, np.array([0.0, 1.0, 0.0]))
+                    info = {
+                        "applied": True,
+                        "frame": "local relative, glTF Y-up (ground normal -> +Y)",
+                        "rotation_to_viewer": [[float(v) for v in r] for r in rot],
+                        "ground_normal": [float(v) for v in gn],
+                        "reason": "rotated local model so ground plane normal aligns with glTF +Y",
+                    }
+                    return rot, info
+
         return None, {"applied": False,
                       "reason": "model is not in ECEF; already a local frame"}
     # The georef stage records the datum as `scene_centroid_wgs84`; `lat0`/`lon0`
@@ -1258,7 +1291,7 @@ def run(ws: "RunWorkspace", config: "Config", tools: "ToolRegistry", ctx: "_Stag
     if cfg.mesh_glb and textured_obj is not None:
         glb_path = export_dir / "model.glb"
         try:
-            rotation, frame_info = _viewer_frame_transform(transform_info)
+            rotation, frame_info = _viewer_frame_transform(transform_info, ws=ws)
             frame_info.update(_write_glb(textured_obj, glb_path, rotation))
             ctx.output(model_glb=str(glb_path))
             ctx.metric(viewer_frame=frame_info)

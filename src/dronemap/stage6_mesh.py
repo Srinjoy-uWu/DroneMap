@@ -247,7 +247,21 @@ def _run_terrain_mesh(ws: "RunWorkspace", cfg: "MeshConfig", dense_ply: Path, ct
     else:
         # No telemetry means COLMAP's +Z is arbitrary, so recover the vertical
         # from where the cameras were pointing instead of assuming it.
-        up_hint = up_hint_from_cameras(ws.sparse_dir / "0" / "images.txt")
+        images_txt = None
+        for cand in [
+            ws.sparse_dir / "0" / "txt" / "images.txt",
+            ws.sparse_dir / "txt" / "images.txt",
+            ws.sparse_dir / "0" / "images.txt",
+            ws.sparse_dir / "images.txt",
+        ]:
+            if cand.exists():
+                images_txt = cand
+                break
+        if images_txt is None:
+            txt_matches = list(ws.sparse_dir.rglob("images.txt"))
+            images_txt = txt_matches[0] if txt_matches else (ws.sparse_dir / "0" / "images.txt")
+
+        up_hint = up_hint_from_cameras(images_txt)
         if up_hint is not None:
             ctx.note(
                 "ground-plane prior: mean camera optical axis "
@@ -269,7 +283,7 @@ def _run_terrain_mesh(ws: "RunWorkspace", cfg: "MeshConfig", dense_ply: Path, ct
         grid_dim=cfg.terrain_grid_dim,
         max_grid_dim=cfg.terrain_grid_max,
         up_hint=up_hint,
-        max_tilt_deg=cfg.terrain_max_tilt_deg,
+        max_tilt_deg=cfg.terrain_max_tilt_deg if is_georef else max(cfg.terrain_max_tilt_deg, 60.0),
         texture_size=cfg.texture_size,
     )
     if metrics["ground_plane_source"] == "fit_rejected":
@@ -300,12 +314,14 @@ def _run_terrain_mesh(ws: "RunWorkspace", cfg: "MeshConfig", dense_ply: Path, ct
         ground_plane_source=metrics["ground_plane_source"],
         ground_rms_residual_m=metrics["ground_rms_residual_m"],
         ground_inlier_fraction=metrics["ground_inlier_fraction"],
+        ground_normal=metrics.get("ground_normal"),
         relief_m=metrics["relief_m"],
         cloud_z_span_m=metrics["cloud_z_span_m"],
     )
     ctx.output(
         textured_obj=str(out_obj),
         mesh_ply=str(out_ply),
+        ground_normal=metrics.get("ground_normal"),
     )
 
 

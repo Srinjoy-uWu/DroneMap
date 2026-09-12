@@ -157,11 +157,6 @@ def fit_ground_plane(
 
     tilt = math.degrees(math.acos(float(np.clip(np.dot(normal, up), -1.0, 1.0))))
     source = "fitted"
-    if not np.isfinite(tilt) or tilt > max_tilt_deg:
-        normal = up
-        center = band.mean(axis=0) if len(band) else points.mean(axis=0)
-        source = "fit_rejected"
-        tilt = 0.0
 
     residual = (band - center) @ normal
     rms = float(np.sqrt(np.mean(residual**2))) if len(band) else float("nan")
@@ -169,6 +164,12 @@ def fit_ground_plane(
     # means the same thing on a flat airfield and on a sloping hillside.
     tol = max(3.0 * rms, 0.05) if np.isfinite(rms) else np.inf
     inliers = float(np.mean(np.abs(residual) <= tol)) if len(band) else 0.0
+
+    if not np.isfinite(tilt) or tilt > max_tilt_deg:
+        normal = up
+        center = band.mean(axis=0) if len(band) else points.mean(axis=0)
+        source = "fit_rejected"
+        tilt = 0.0
 
     return GroundPlane(
         center=center,
@@ -204,20 +205,34 @@ def up_hint_from_cameras(images_txt: Path) -> np.ndarray | None:
     distinct outcome from "up is +Z".
     """
     if not images_txt.exists():
-        images_txt = images_txt.parent / "txt" / "images.txt"
+        for candidate in [
+            images_txt.parent / "txt" / "images.txt",
+            images_txt.parent / "0" / "txt" / "images.txt",
+            images_txt.parent / "sparse" / "0" / "txt" / "images.txt",
+            images_txt.parent.parent / "0" / "txt" / "images.txt",
+            images_txt.parent.parent / "sparse" / "0" / "txt" / "images.txt",
+        ]:
+            if candidate.exists():
+                images_txt = candidate
+                break
     if not images_txt.exists():
         return None
 
     axes: list[np.ndarray] = []
+    IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp")
     try:
         with images_txt.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if line.startswith("#") or not line.strip():
+                line_str = line.strip()
+                if not line_str or line_str.startswith("#"):
                     continue
-                parts = line.split()
-                # IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME; the alternating
-                # POINTS2D lines have no 10th token that looks like a filename.
-                if len(parts) < 10 or "." not in parts[9]:
+                parts = line_str.split()
+                # Image header lines in COLMAP images.txt have exactly 10 tokens:
+                # IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME
+                if len(parts) != 10:
+                    continue
+                name = parts[9].lower()
+                if not any(name.endswith(ext) for ext in IMAGE_EXTS):
                     continue
                 qw, qx, qy, qz = (float(v) for v in parts[1:5])
                 n = math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
@@ -466,6 +481,7 @@ def reconstruct_terrain_mesh(
             round(plane.rms_residual_m, 4) if np.isfinite(plane.rms_residual_m) else None
         ),
         "ground_inlier_fraction": plane.inlier_fraction,
+        "ground_normal": [round(float(v), 6) for v in plane.normal],
         "relief_m": round(float(pts_rot[:, 2].max() - pts_rot[:, 2].min()), 3),
         "cloud_z_span_m": round(float(points[:, 2].max() - points[:, 2].min()), 3),
     }
