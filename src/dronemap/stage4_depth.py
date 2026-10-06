@@ -219,58 +219,68 @@ def run(ws: "RunWorkspace", config: "Config", tools: "ToolRegistry", ctx: "_Stag
     batch_size = 4 if device == "cuda" else 1
     kf_batches = [selected_kfs[i:i + batch_size] for i in range(0, len(selected_kfs), batch_size)]
 
-    for batch in kf_batches:
-        images_bgr: list[np.ndarray] = []
-        valid_kfs: list[dict] = []
+    try:
+        for batch in kf_batches:
+            images_bgr: list[np.ndarray] = []
+            valid_kfs: list[dict] = []
 
-        for kf in batch:
-            img_path = Path(kf["path"])
-            if not img_path.exists():
+            for kf in batch:
+                img_path = Path(kf["path"])
+                if not img_path.exists():
+                    continue
+                bgr = cv2.imread(str(img_path))
+                if bgr is None:
+                    continue
+                images_bgr.append(bgr)
+                valid_kfs.append(kf)
+
+            if not images_bgr:
                 continue
-            bgr = cv2.imread(str(img_path))
-            if bgr is None:
-                continue
-            images_bgr.append(bgr)
-            valid_kfs.append(kf)
 
-        if not images_bgr:
-            continue
+            # Run depth estimation
+            if cfg.backend == "depth_anything":
+                rel_depths = _run_depth_anything(images_bgr, cfg.depth_anything_model, device)
+                depth_maps: list[np.ndarray] = []
+                for i, rel in enumerate(rel_depths):
+                    kf = valid_kfs[i]
+                    alt = kf.get("alt_m") or 50.0
+                    pitch = kf.get("gimbal_pitch")
+                    depth_maps.append(_scale_relative_depth(rel, alt, pitch))
+            else:
+                depth_maps = _run_metric3d(images_bgr, cfg.metric3d_model, device)
 
-        # Run depth estimation
-        if cfg.backend == "depth_anything":
-            rel_depths = _run_depth_anything(images_bgr, cfg.depth_anything_model, device)
-            depth_maps: list[np.ndarray] = []
-            for i, rel in enumerate(rel_depths):
-                kf = valid_kfs[i]
-                alt = kf.get("alt_m") or 50.0
-                pitch = kf.get("gimbal_pitch")
-                depth_maps.append(_scale_relative_depth(rel, alt, pitch))
-        else:
-            depth_maps = _run_metric3d(images_bgr, cfg.metric3d_model, device)
+            # Save outputs
+            for kf, depth_m in zip(valid_kfs, depth_maps):
+                stem = Path(kf["path"]).stem
+                out_path = raw_dir / f"{stem}_depth.png"
 
-        # Save outputs
-        for kf, depth_m in zip(valid_kfs, depth_maps):
-            stem = Path(kf["path"]).stem
-            out_path = raw_dir / f"{stem}_depth.png"
+                if cfg.save_depth_png:
+                    _save_depth_png(depth_m, out_path)
 
-            if cfg.save_depth_png:
-                _save_depth_png(depth_m, out_path)
+                valid_mask = depth_m > 0.01
+                n_valid = int(valid_mask.sum())
+                total_valid_px += n_valid
+                mean_d = float(depth_m[valid_mask].mean()) if n_valid else 0.0
+                mean_depths.append(mean_d)
 
-            valid_mask = depth_m > 0.01
-            n_valid = int(valid_mask.sum())
-            total_valid_px += n_valid
-            mean_d = float(depth_m[valid_mask].mean()) if n_valid else 0.0
-            mean_depths.append(mean_d)
-
-            depth_index.append({
-                "frame_idx": kf.get("frame_idx"),
-                "stem": stem,
-                "depth_png": str(out_path) if cfg.save_depth_png else None,
-                "backend": cfg.backend,
-                "mean_depth_m": round(mean_d, 3),
-                "n_valid_px": n_valid,
-                "alt_m": kf.get("alt_m"),
-            })
+                depth_index.append({
+                    "frame_idx": kf.get("frame_idx"),
+                    "stem": stem,
+                    "depth_png": str(out_path) if cfg.save_depth_png else None,
+                    "backend": cfg.backend,
+                    "mean_depth_m": round(mean_d, 3),
+                    "n_valid_px": n_valid,
+                    "alt_m": kf.get("alt_m"),
+                })
+    finally:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
+        import gc
+        gc.collect()
 
     (depth_dir / "depth_index.json").write_text(
         json.dumps(depth_index, indent=2, default=str), encoding="utf-8"

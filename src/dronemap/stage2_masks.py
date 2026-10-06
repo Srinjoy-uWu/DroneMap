@@ -131,76 +131,87 @@ def run(ws: "RunWorkspace", config: "Config", tools: "ToolRegistry", ctx: "_Stag
     total_fraction = 0.0
     surviving: list[dict] = []
 
-    for kf in keyframes:
-        img_path = Path(kf["path"])
-        if not img_path.exists():
-            ctx.note(f"skipping missing image: {img_path.name}")
-            continue
+    try:
+        for kf in keyframes:
+            img_path = Path(kf["path"])
+            if not img_path.exists():
+                ctx.note(f"skipping missing image: {img_path.name}")
+                continue
 
-        bgr = cv2.imread(str(img_path))
-        if bgr is None:
-            ctx.note(f"could not read image: {img_path.name}")
-            continue
+            bgr = cv2.imread(str(img_path))
+            if bgr is None:
+                ctx.note(f"could not read image: {img_path.name}")
+                continue
 
-        h, w = bgr.shape[:2]
+            h, w = bgr.shape[:2]
 
-        # Run inference (returns a list; we pass a single image)
-        results = model(bgr, verbose=False, conf=cfg.conf)
-        result = results[0]
+            # Run inference (returns a list; we pass a single image)
+            results = model(bgr, verbose=False, conf=cfg.conf)
+            result = results[0]
 
-        mask = _build_dynamic_mask(
-            result,
-            dynamic_classes,
-            conf_threshold=cfg.conf,
-            image_hw=(h, w),
-            dilate_px=cfg.dilate_px,
+            mask = _build_dynamic_mask(
+                result,
+                dynamic_classes,
+                conf_threshold=cfg.conf,
+                image_hw=(h, w),
+                dilate_px=cfg.dilate_px,
+            )
+
+            masked_fraction = float(mask.sum()) / (255 * h * w)
+            total_fraction += masked_fraction
+
+            if masked_fraction >= cfg.max_masked_fraction:
+                # Frame is mostly masked — drop it entirely
+                img_path.unlink(missing_ok=True)
+                n_dropped += 1
+                ctx.note(f"dropped {img_path.name}: {masked_fraction:.1%} masked")
+                continue
+
+            # In COLMAP convention for --ImageReader.mask_path:
+            # >0 (255) = VALID pixels where features are extracted.
+            # 0        = MASKED OUT pixels (dynamic objects) to be ignored.
+            # We invert the dynamic mask so background is 255 and dynamic objects are 0.
+            colmap_mask = 255 - mask
+
+            # Save the mask PNG (COLMAP expects <image_name>.png, e.g. frame_000000.jpg.png)
+            mask_path_ext = ws.masks_dir / f"{img_path.name}.png"
+            mask_path_stem = ws.masks_dir / f"{img_path.stem}.png"
+            cv2.imwrite(str(mask_path_ext), colmap_mask)
+            cv2.imwrite(str(mask_path_stem), colmap_mask)
+
+            if mask.any():
+                n_masked += 1
+
+            kf["masked_fraction"] = round(masked_fraction, 4)
+            surviving.append(kf)
+
+        if not surviving:
+            raise RuntimeError(
+                "All keyframes were dropped by the masking stage — the scene may be "
+                "entirely dynamic objects. Lower `masks.max_masked_fraction` or "
+                "set `masks.enabled: false` to bypass masking."
+            )
+
+        mean_fraction = total_fraction / max(len(keyframes), 1)
+
+        # Update keyframe index (drop removed frames)
+        ws.frames_index.write_text(json.dumps(surviving, indent=2), encoding="utf-8")
+
+        ctx.metric(
+            n_keyframes_in=len(keyframes),
+            n_masked_frames=n_masked,
+            n_dropped_frames=n_dropped,
+            n_keyframes_out=len(surviving),
+            mean_masked_fraction=round(mean_fraction, 4),
         )
-
-        masked_fraction = float(mask.sum()) / (255 * h * w)
-        total_fraction += masked_fraction
-
-        if masked_fraction >= cfg.max_masked_fraction:
-            # Frame is mostly masked — drop it entirely
-            img_path.unlink(missing_ok=True)
-            n_dropped += 1
-            ctx.note(f"dropped {img_path.name}: {masked_fraction:.1%} masked")
-            continue
-
-        # In COLMAP convention for --ImageReader.mask_path:
-        # >0 (255) = VALID pixels where features are extracted.
-        # 0        = MASKED OUT pixels (dynamic objects) to be ignored.
-        # We invert the dynamic mask so background is 255 and dynamic objects are 0.
-        colmap_mask = 255 - mask
-
-        # Save the mask PNG (COLMAP expects <image_name>.png, e.g. frame_000000.jpg.png)
-        mask_path_ext = ws.masks_dir / f"{img_path.name}.png"
-        mask_path_stem = ws.masks_dir / f"{img_path.stem}.png"
-        cv2.imwrite(str(mask_path_ext), colmap_mask)
-        cv2.imwrite(str(mask_path_stem), colmap_mask)
-
-        if mask.any():
-            n_masked += 1
-
-        kf["masked_fraction"] = round(masked_fraction, 4)
-        surviving.append(kf)
-
-    if not surviving:
-        raise RuntimeError(
-            "All keyframes were dropped by the masking stage — the scene may be "
-            "entirely dynamic objects. Lower `masks.max_masked_fraction` or "
-            "set `masks.enabled: false` to bypass masking."
-        )
-
-    mean_fraction = total_fraction / max(len(keyframes), 1)
-
-    # Update keyframe index (drop removed frames)
-    ws.frames_index.write_text(json.dumps(surviving, indent=2), encoding="utf-8")
-
-    ctx.metric(
-        n_keyframes_in=len(keyframes),
-        n_masked_frames=n_masked,
-        n_dropped_frames=n_dropped,
-        n_keyframes_out=len(surviving),
-        mean_masked_fraction=round(mean_fraction, 4),
-    )
-    ctx.output(masks_dir=str(ws.masks_dir))
+        ctx.output(masks_dir=str(ws.masks_dir))
+    finally:
+        del model
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
+        import gc
+        gc.collect()

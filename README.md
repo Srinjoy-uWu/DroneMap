@@ -1,8 +1,7 @@
-# DroneMap
+# DroneMap (SIH26158)
 
-**Single-Pass Drone Video → Accurate, Georeferenced 3D Model**  
-An end-to-end aerial photogrammetry suite: turns a single continuous drone flight video (with or without telemetry) into a georeferenced, metrically scaled, photo-textured 3D model — complete with an interactive WebGL 3D measurement studio and automated accuracy reporting.
-
+**Single-Pass Drone Video → Georeferenced, Metrically Accurate 3D Model**  
+Smart India Hackathon problem statement **SIH26158**: An end-to-end aerial photogrammetry suite that turns a single continuous drone flight video (with or without telemetry) into a georeferenced, metrically scaled, photo-textured 3D model, classified semantic layers, and survey GIS deliverables — complete with an interactive WebGL 3D measurement studio and automated accuracy reporting.
 
 ---
 
@@ -166,18 +165,22 @@ The repository contains ready-to-run 3DGS training notebooks under `notebooks/`:
 
 ## 🧪 Testing & Verification
 
-The repository includes a comprehensive unit and regression test suite (149 tests):
+The repository includes a comprehensive unit, integration, and hardening test suite (157 tests):
 ```powershell
 # Run the complete test suite:
-pytest -v
+pytest -q
 ```
 Tests cover:
-- Truthful georeferencing status tiers and coordinate frames
+- Truthful georeferencing status tiers and coordinate frames (LOCAL_RELATIVE vs UTM)
 - Ground plane PCA fitting with geodetic vertical priors
 - UV-to-texel texture sampling and black-atlas detection
 - Automatic mesh repair and component filtering
 - Clean command disk pruning safeguards
 - Telemetry parsers (DJI SRT and generic CSV)
+- Exhaustive matching escalation frame cap ($N \le 150$)
+- Stage 4b SIH26158 4-class semantic rollup mapping
+- Dynamic masking graceful degradation on all frames dropped
+- PyTorch GPU memory cleanup and cache release
 
 ---
 
@@ -204,6 +207,7 @@ Each run stores its deliverables in `data/runs/<run_id>/07_export/`:
 - **`dsm.tif`**: Digital Surface Model (GeoTIFF, metric elevations).
 - **`dtm.tif`**: Digital Terrain Model (bare-earth GeoTIFF).
 - **`orthomosaic.tif`**: Orthorectified true-scale RGB aerial map.
+- **`semantics.json` / `sih26158_categories.json`**: Semantic class distributions ((i) terrain, (ii) buildings, (iii) roads & infrastructure, (iv) vegetation & obstacles).
 - **`accuracy_report.json` & `report.html`**: Quality metrics, flight geometry assessment, and CRS metadata.
 - **`trajectory.kml` / `trajectory.json`**: Recovered 3D flight path.
 

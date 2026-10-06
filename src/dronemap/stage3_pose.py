@@ -523,10 +523,6 @@ def run(ws: "RunWorkspace", config: "Config", tools: "ToolRegistry", ctx: "_Stag
 
     # Escalation ladder
     if registered_fraction < cfg.min_registered_fraction and cfg.escalate_on_failure:
-        ctx.note(
-            f"registered fraction {registered_fraction:.1%} < "
-            f"threshold {cfg.min_registered_fraction:.1%} — escalating to exhaustive matching"
-        )
         import shutil
         backup_dir = ws.sparse_dir.parent / "sparse_backup_sequential"
         if ws.sparse_dir.exists():
@@ -534,27 +530,39 @@ def run(ws: "RunWorkspace", config: "Config", tools: "ToolRegistry", ctx: "_Stag
                 shutil.rmtree(backup_dir)
             shutil.copytree(ws.sparse_dir, backup_dir)
 
-        # Re-use the database (features already extracted); just re-match
-        _match_exhaustive(colmap, ws)
-        log_text, mapper_rc = _run_mapper(colmap, ws, config)
-        new_model_dir = _largest_model_dir(ws.sparse_dir)
-        new_n_reg = _count_registered_cameras(new_model_dir)
-
-        # Never replace a superior sequential reconstruction with a degenerate exhaustive one!
-        if new_n_reg < n_reg and backup_dir.exists():
+        # Cap exhaustive matching to N <= 150 to prevent O(N^2) latency explosion
+        if n_images <= 150:
             ctx.note(
-                f"exhaustive matching yielded fewer cameras ({new_n_reg} < {n_reg}); "
-                "preserving superior sequential reconstruction"
+                f"registered fraction {registered_fraction:.1%} < "
+                f"threshold {cfg.min_registered_fraction:.1%} (N={n_images} <= 150) — escalating to exhaustive matching"
             )
-            shutil.rmtree(ws.sparse_dir)
-            shutil.copytree(backup_dir, ws.sparse_dir)
-            model_dir = _largest_model_dir(ws.sparse_dir)
+            # Re-use the database (features already extracted); just re-match
+            _match_exhaustive(colmap, ws)
+            log_text, mapper_rc = _run_mapper(colmap, ws, config)
+            new_model_dir = _largest_model_dir(ws.sparse_dir)
+            new_n_reg = _count_registered_cameras(new_model_dir)
+
+            # Never replace a superior sequential reconstruction with a degenerate exhaustive one!
+            if new_n_reg < n_reg and backup_dir.exists():
+                ctx.note(
+                    f"exhaustive matching yielded fewer cameras ({new_n_reg} < {n_reg}); "
+                    "preserving superior sequential reconstruction"
+                )
+                shutil.rmtree(ws.sparse_dir)
+                shutil.copytree(backup_dir, ws.sparse_dir)
+                model_dir = _largest_model_dir(ws.sparse_dir)
+            else:
+                model_dir = new_model_dir
+                n_reg = new_n_reg
+                metrics = _parse_mapper_summary(log_text, n_images)
+                registered_fraction = metrics.get("registered_fraction", n_reg / max(n_images, 1))
+                ctx.metric(**metrics)
         else:
-            model_dir = new_model_dir
-            n_reg = new_n_reg
-            metrics = _parse_mapper_summary(log_text, n_images)
-            registered_fraction = metrics.get("registered_fraction", n_reg / max(n_images, 1))
-            ctx.metric(**metrics)
+            ctx.note(
+                f"registered fraction {registered_fraction:.1%} < threshold {cfg.min_registered_fraction:.1%}, "
+                f"but N={n_images} > 150 (exhaustive would incur {n_images * (n_images - 1) // 2} pairs); "
+                "bypassing exhaustive matching to preserve near-real-time throughput"
+            )
 
         if backup_dir.exists():
             shutil.rmtree(backup_dir, ignore_errors=True)
